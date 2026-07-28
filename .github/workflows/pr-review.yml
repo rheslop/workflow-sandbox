@@ -35,7 +35,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.number }}
           REPO_NAME: ${{ github.event.repository.name }}
-        run:
+        run: |
           gem install jekyll jekyll-theme-primer
           jekyll build --baseurl "/${REPO_NAME}/pr-previews/${PR_NUMBER}" --destination _site
 
