@@ -1,27 +1,14 @@
-name: PR Preview
+name: PR Preview Generation
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - 'docs/**'
-      - 'assemblies/**'
-      - 'topics/**'
-      - '_includes/**'
-      - '_layouts/**'
-      - '_sass/**'
-      - 'assets/**'
-      - '_config.yml'
-      - 'Gemfile'
-      - 'index.md'
-      - '.github/workflows/pr-preview.yml'
+    # Removed the strict file paths so any edit triggers this in the sandbox
 
 permissions:
   contents: write
   pull-requests: write 
 
-# Serialize all gh-pages pushes across both workflows to prevent
-# non-fast-forward failures when two PRs deploy at the same time.
 concurrency:
   group: gh-pages-deploy
   cancel-in-progress: false
@@ -30,7 +17,6 @@ jobs:
   build-and-deploy:
     name: Build & Deploy Preview
     runs-on: ubuntu-latest
-    # Skip fork PRs — GITHUB_TOKEN is read-only for forks and the push would fail.
     if: github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
@@ -40,23 +26,17 @@ jobs:
           fetch-depth: 0 
           persist-credentials: true
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-          bundler-cache: true
-
-      - name: Install system dependencies
-        run: sudo apt-get install -y asciidoctor
-
-      - name: Build site with preview base URL
+      - name: Build Dummy Website
         env:
-          JEKYLL_ENV: production
           PR_NUMBER: ${{ github.event.number }}
         run: |
-          bundle exec jekyll build \
-            --baseurl "/mta-documentation/pr-previews/${PR_NUMBER}" \
-            --destination _site
+          # INSTEAD OF JEKYLL: We just make a quick dummy HTML file
+          mkdir -p _site
+          echo "<html><body style='font-family: sans-serif; padding: 2rem;'>" > _site/index.html
+          echo "<h1>🎉 Sandbox Success!</h1>" >> _site/index.html
+          echo "<p>This is a live preview for PR #<strong>${PR_NUMBER}</strong>.</p>" >> _site/index.html
+          echo "<p>When you close the PR, the cleanup bot will delete this page.</p>" >> _site/index.html
+          echo "</body></html>" >> _site/index.html
 
       - name: Deploy preview to gh-pages
         env:
@@ -74,7 +54,7 @@ jobs:
           else
             git checkout --orphan gh-pages
             git rm -rf . --quiet
-            echo "GitHub Pages for mta-documentation" > README.md
+            echo "# Sandbox Pages Repo" > README.md
             git add README.md
             git commit -m "chore: initialise gh-pages branch"
           fi
@@ -91,7 +71,6 @@ jobs:
             COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
             git commit -m "preview: PR #${PR_NUMBER} @ ${COMMIT_SHA::7}"
 
-            # Retry push up to 3 times in case of a concurrent non-fast-forward
             for attempt in 1 2 3; do
               git fetch origin gh-pages
               git rebase origin/gh-pages 2>/dev/null || { git rebase --abort; true; }
@@ -113,8 +92,7 @@ jobs:
             const owner    = context.repo.owner;
             const repo     = context.repo.repo;
 
-            const previewUrl =
-              `https://${owner}.github.io/${repo}/pr-previews/${prNumber}/`;
+            const previewUrl = `https://${owner}.github.io/${repo}/pr-previews/${prNumber}/`;
 
             const body = [
               `## 📄 Documentation Preview`,
@@ -132,7 +110,6 @@ jobs:
             const marker = '<!-- pr-preview-bot -->';
             const markedBody = marker + '\n' + body;
 
-            // Paginate to handle PRs with more than 30 comments
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner, repo, issue_number: prNumber,
             });
