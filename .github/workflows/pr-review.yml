@@ -26,17 +26,18 @@ jobs:
           fetch-depth: 0 
           persist-credentials: true
 
-      - name: Build Dummy Website
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Build site with Jekyll
         env:
           PR_NUMBER: ${{ github.event.number }}
-        run: |
-          # INSTEAD OF JEKYLL: We just make a quick dummy HTML file
-          mkdir -p _site
-          echo "<html><body style='font-family: sans-serif; padding: 2rem;'>" > _site/index.html
-          echo "<h1>🎉 Sandbox Success!</h1>" >> _site/index.html
-          echo "<p>This is a live preview for PR #<strong>${PR_NUMBER}</strong>.</p>" >> _site/index.html
-          echo "<p>When you close the PR, the cleanup bot will delete this page.</p>" >> _site/index.html
-          echo "</body></html>" >> _site/index.html
+          REPO_NAME: ${{ github.event.repository.name }}
+        run:
+          gem install jekyll jekyll-theme-primer
+          jekyll build --baseurl "/${REPO_NAME}/pr-previews/${PR_NUMBER}" --destination _site
 
       - name: Deploy preview to gh-pages
         env:
